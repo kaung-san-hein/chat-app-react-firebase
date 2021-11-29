@@ -8,6 +8,10 @@ import {
   addDoc,
   Timestamp,
   orderBy,
+  setDoc,
+  doc,
+  getDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { ref, getDownloadURL, uploadBytes } from "firebase/storage";
 import User from "../components/User";
@@ -38,7 +42,7 @@ const Home = () => {
     return () => unsub();
   }, [sender]);
 
-  const selectUser = (user) => {
+  const selectUser = async (user) => {
     setChat(user);
 
     const receiver = user.uid;
@@ -55,6 +59,11 @@ const Home = () => {
       });
       setMsgs(msgs);
     });
+
+    const docSnap = await getDoc(doc(db, "lastMsg", id));
+    if (docSnap.data()?.from !== sender) {
+      await updateDoc(doc(db, "lastMsg", id), { unread: false });
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -82,6 +91,15 @@ const Home = () => {
       createdAt: Timestamp.fromDate(new Date()),
       media: url || "",
     });
+
+    await setDoc(doc(db, "lastMsg", id), {
+      text,
+      from: sender,
+      to: receiver,
+      createdAt: Timestamp.fromDate(new Date()),
+      media: url || "",
+      unread: true,
+    });
     setText("");
     setImg(null);
   };
@@ -90,7 +108,13 @@ const Home = () => {
     <div className="home_container">
       <div className="users_container">
         {users.map((user) => (
-          <User key={user.uid} user={user} selectUser={selectUser} />
+          <User
+            key={user.uid}
+            user={user}
+            selectUser={selectUser}
+            sender={sender}
+            chat={chat}
+          />
         ))}
       </div>
       <div className="messages_container">
@@ -100,10 +124,11 @@ const Home = () => {
               <h3>{chat.name}</h3>
             </div>
             <div className="messages">
-              {msgs.length ?
-                msgs.map((msg, i) => (
-                  <Message key={i} msg={msg} sender={sender} />
-                )) : null}
+              {msgs.length
+                ? msgs.map((msg, i) => (
+                    <Message key={i} msg={msg} sender={sender} />
+                  ))
+                : null}
             </div>
             <MessageForm
               handleSubmit={handleSubmit}
